@@ -1,3 +1,6 @@
 .idea/
 *.png
 gw
+/config/config.yaml
+/data/
+/logs/
