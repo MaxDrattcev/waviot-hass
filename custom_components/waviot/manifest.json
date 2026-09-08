@@ -1,6 +1,6 @@
 {
   "domain": "waviot",
-  "name": "Waviot",
+  "name": "WAVIoT HOME",
   "codeowners": ["@maxdratcev"],
   "config_flow": true,
   "documentation": "https://github.com/MaxDrattcev/waviot-hass",
