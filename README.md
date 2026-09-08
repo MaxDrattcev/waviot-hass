@@ -1,4 +1,4 @@
-# WAVIoT HOME для Home Assistant
+# Waviot Home для Home Assistant
 
 Неофициальная интеграция [Home Assistant](https://www.home-assistant.io/) для устройств приложения **Waviot Home**: счётчики воды и газа, датчики протечки, реле, хаб и зарядные станции для электромобилей.
 
