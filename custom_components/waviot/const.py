@@ -53,9 +53,6 @@ EVSE_STATE_READY_TO_START = 1  # "Свободна" — разъём не под
 EVSE_STATE_WAITING_START = 3  # подключено, готово к запуску
 EVSE_STATE_CHARGING = 4  # идёт зарядка
 
-# Состояния, в которых пользователю разрешено включать/выключать зарядку.
-EVSE_TOGGLABLE_STATES = (EVSE_STATE_WAITING_START, EVSE_STATE_CHARGING)
-
 _EVSE_ERROR_STATES = {
     5: "Состояние D",
     6: "Ошибка УЗО",

@@ -17,7 +17,6 @@ from .const import (
     DOMAIN,
     EVSE_STATE_CHARGING,
     EVSE_STATE_WAITING_START,
-    EVSE_TOGGLABLE_STATES,
     HW_TYPE_PHOBOS,
     HW_TYPE_WBOX,
     describe_evse_state,
@@ -149,8 +148,12 @@ class WaviotRelaySwitch(_WaviotSwitchBase):
 class WaviotChargerSwitch(_WaviotSwitchBase):
     """Зарядка wbox — включать/выключать можно только когда подключено.
 
-    В остальных состояниях (разъём свободен, ошибка, неизвестно) сущность
-    недоступна.
+    Сущность остаётся available, пока координатор вообще видит устройство:
+    "не подключено" — обычное повседневное состояние (машины нет), а не
+    ошибка, поэтому не должно рисоваться в HA как тревожный значок
+    "Недоступно". Вместо этого блокировка команды в неподходящем состоянии
+    реализована
+    через понятную ошибку в async_turn_on/async_turn_off.
     """
 
     def __init__(
@@ -164,10 +167,7 @@ class WaviotChargerSwitch(_WaviotSwitchBase):
 
     @property
     def available(self) -> bool:
-        status = self._status
-        if not super().available or status is None:
-            return False
-        return status["state"] in EVSE_TOGGLABLE_STATES
+        return super().available and self._status is not None
 
     @property
     def is_on(self) -> bool | None:

@@ -95,23 +95,28 @@ def _make_number(coordinator, client, account, device) -> WaviotChargerMaxPowerN
     return number
 
 
-# --- WaviotChargerSwitch: available только когда подключено (WaitingStart/Charging) ---
+# --- WaviotChargerSwitch: available зависит только от наличия статуса, не от
+# состояния EVSE — "не подключено" это обычное состояние, а не ошибка, и не
+# должно рисоваться как "Недоступно" в интерфейсе. Блокировка неверной команды
+# идёт через понятную ошибку в async_turn_on/async_turn_off (см. ниже). ---
 
 
 @pytest.mark.parametrize(
-    "state,expected",
+    "state",
     [
-        (EVSE_STATE_READY_TO_START, False),  # разъём свободен — не подключено
-        (EVSE_STATE_WAITING_START, True),
-        (EVSE_STATE_CHARGING, True),
-        (6, False),  # ошибка (например УЗО)
-        (999, False),  # неизвестное состояние
+        EVSE_STATE_READY_TO_START,  # разъём свободен — не подключено, но не ошибка
+        EVSE_STATE_WAITING_START,
+        EVSE_STATE_CHARGING,
+        6,  # ошибка (например УЗО)
+        999,  # неизвестное состояние
     ],
 )
-def test_available_only_when_connected(coordinator, client, account, device, state, expected):
+def test_available_whenever_status_present_regardless_of_evse_state(
+    coordinator, client, account, device, state
+):
     coordinator.data["777"] = _status(state)
     switch = _make_switch(coordinator, client, account, device)
-    assert switch.available is expected
+    assert switch.available is True
 
 
 def test_unavailable_when_no_status_at_all(coordinator, client, account, device):
