@@ -45,10 +45,10 @@ async def async_setup_entry(
     entities: list[SensorEntity] = []
     for device in runtime.devices:
         if device.kind == HW_TYPE_AQUA:
-            entities.append(WaviotWaterMeterSensor(coordinator, device))
+            entities.append(WaviotWaterMeterSensor(coordinator, device, "Холодная вода"))
             entities.append(WaviotVoltageSensor(coordinator, device))
         elif device.kind == HW_TYPE_GEFEST:
-            entities.append(WaviotWaterMeterSensor(coordinator, device))
+            entities.append(WaviotWaterMeterSensor(coordinator, device, "Горячая вода"))
             entities.append(WaviotVoltageSensor(coordinator, device))
         elif device.kind == HW_TYPE_BETAR:
             entities.append(WaviotGasMeterSensor(coordinator, device))
@@ -109,12 +109,20 @@ class _WaviotSensorBase(CoordinatorEntity, SensorEntity):
 
 
 class WaviotWaterMeterSensor(_WaviotSensorBase):
+    """Счётчик воды aqua/gefest.
+
+    aqua = холодная вода, gefest = горячая (
+    aqua -> devices.types.smart_meter.cold_water, gefest -> ...hot_water). Официальное
+    приложение Waviot Home само это не различает (gefest у них — отдельная категория
+    "Heat"/теплосчётчик, не "горячая вода"), но пользователь решил взять готовую, разделение на холодную и горячую воду.
+    """
+
     _attr_device_class = SensorDeviceClass.WATER
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_native_unit_of_measurement = UnitOfVolume.LITERS
 
-    def __init__(self, coordinator: WaviotMainCoordinator, device: WaviotDeviceInfo) -> None:
-        super().__init__(coordinator, device, "meter", "Расход воды")
+    def __init__(self, coordinator: WaviotMainCoordinator, device: WaviotDeviceInfo, name: str) -> None:
+        super().__init__(coordinator, device, "meter", name)
 
     @property
     def native_value(self) -> float | None:
