@@ -1,6 +1,5 @@
 .idea/
-*.png
-gw
-/config/config.yaml
-/data/
-/logs/
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/

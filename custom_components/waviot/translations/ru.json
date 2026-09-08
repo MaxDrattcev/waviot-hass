@@ -1,0 +1,28 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Подключение Waviot",
+        "data": {
+          "login": "Логин",
+          "password": "Пароль"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Повторная авторизация Waviot",
+        "description": "Сессия для {login} истекла, введите пароль ещё раз",
+        "data": {
+          "password": "Пароль"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Неверный логин или пароль",
+      "cannot_connect": "Не удалось подключиться к Waviot"
+    },
+    "abort": {
+      "already_configured": "Этот аккаунт уже добавлен",
+      "reauth_successful": "Авторизация обновлена"
+    }
+  }
+}
