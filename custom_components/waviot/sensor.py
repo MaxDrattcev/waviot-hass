@@ -111,10 +111,10 @@ class _WaviotSensorBase(CoordinatorEntity, SensorEntity):
 class WaviotWaterMeterSensor(_WaviotSensorBase):
     """Счётчик воды aqua/gefest.
 
-    aqua = холодная вода, gefest = горячая (
-    aqua -> devices.types.smart_meter.cold_water, gefest -> ...hot_water). Официальное
-    приложение Waviot Home само это не различает (gefest у них — отдельная категория
-    "Heat"/теплосчётчик, не "горячая вода"), но пользователь решил взять готовую, разделение на холодную и горячую воду.
+    aqua маркируется как холодная вода, gefest — как горячая. Официальное
+    приложение так их не разделяет (gefest проходит у него отдельной категорией
+    теплосчётчика), но для пользователя разделение на холодную и горячую
+    понятнее, чем два одинаковых "расхода воды".
     """
 
     _attr_device_class = SensorDeviceClass.WATER
@@ -245,9 +245,8 @@ class WaviotCurrentSensor(_WaviotSensorBase):
 class WaviotChargerEnergySensor(_WaviotSensorBase):
     """Энергия текущей сессии зарядки wbox — обнуляется на каждой новой зарядке.
 
-    TOTAL_INCREASING специально рассчитан на счётчики с периодическим сбросом
-    (HA сам корректно обработает обнуление в долгосрочной статистике) — см.
-    поведение подтверждено на реальном устройстве.
+    TOTAL_INCREASING специально рассчитан на счётчики с периодическим сбросом —
+    HA сам корректно обработает обнуление в долгосрочной статистике.
     """
 
     _attr_device_class = SensorDeviceClass.ENERGY

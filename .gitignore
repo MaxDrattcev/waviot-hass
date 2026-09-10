@@ -2,4 +2,21 @@
 __pycache__/
 *.pyc
 .venv/
+venv/
 .pytest_cache/
+
+# Локальные и отладочные файлы: могут содержать реальные логин/пароль от аккаунта
+# Waviot, токены или дампы ответов API — в публичный репозиторий им нельзя.
+*_local.py
+local_*.py
+debug_*.py
+scratch_*.py
+*.local.json
+secrets.yaml
+.env
+.env.*
+credentials.json
+tokens.json
+*.pem
+*.key
+

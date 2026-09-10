@@ -62,8 +62,8 @@ def client(session) -> WaviotClient:
 
 
 async def test_charger_set_max_power_converts_kw_to_watts(client, session):
-    """При ЗАПИСИ API ждёт Вт, хотя при ЧТЕНИИ (parser.py) те же поля приходят в кВт —
-    несимметрично, это фактическое поведение API."""
+    """При ЗАПИСИ API ждёт Вт, хотя при ЧТЕНИИ (parser.py) те же поля приходят
+    в кВт — несимметрично, но это фактическое поведение API."""
     await client.charger_set_max_power("123", "jwt", 7.5)
 
     assert len(session.post_calls) == 1

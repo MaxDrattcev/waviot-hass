@@ -21,8 +21,8 @@ MAX_DOWNLINK_ATTEMPTS = 20
 DOWNLINK_POLL_INTERVAL = 0.1
 DOWNLINK_POLL_STEP = 0.1
 
-# Команды зарядки (wbox): 10 попыток по 2 сек,
-# без нарастающего интервала (в отличие от реле phobos выше).
+# Команды зарядки (wbox): 10 попыток по 2 сек, без нарастающего интервала
+# (в отличие от реле phobos выше).
 CHARGER_CMD_NAME = "CHARGER_DEVICE_EVSE_SHORT_NEW_CMD"
 CHARGER_ACTION_START = 2
 CHARGER_ACTION_STOP = 4
@@ -30,8 +30,8 @@ CHARGER_ACTION_SET_POWER = 0
 CHARGER_POLL_ATTEMPTS = 10
 CHARGER_POLL_INTERVAL = 2.0
 
-# Подстроки постоянно мёртвой refresh-сессии,
-# плюс "old or non-existent refresh token" (подтверждено на реальном аккаунте).
+# Подстроки в ответе API, означающие, что refresh-сессия мертва окончательно
+# и повторять обновление токена бессмысленно — нужен полный релогин.
 _PERMANENT_SESSION_ERRORS = (
     "session closed",
     "rt invalid sign",
@@ -230,8 +230,9 @@ class WaviotClient:
     async def charger_set_max_power(self, modem_id: str, jwt: str, max_power_kw: float) -> None:
         """Установить лимит мощности зарядки wbox.
 
-        Внимание на единицы: в отличие от ЧТЕНИЯ (inst_power/max_power приходят в кВт),
-        при ЗАПИСИ API ждёт Вт. Несимметрично, но это поведение реального клиента.
+        Внимание на единицы: при ЧТЕНИИ inst_power/max_power приходят в кВт,
+        а при ЗАПИСИ API ожидает Вт. Несимметрично, но это фактическое
+        поведение API — отсюда умножение на 1000 ниже.
         """
         await self._send_charger_short_cmd(
             modem_id,

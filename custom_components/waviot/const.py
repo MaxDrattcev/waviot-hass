@@ -64,7 +64,11 @@ _EVSE_ERROR_STATES = {
 
 
 def describe_evse_state(state: int) -> str:
-    """Человекочитаемое описание состояния EVSE."""
+    """Человекочитаемое описание состояния EVSE.
+
+    Коды, не входящие в перечисленные, отдаются как "Неизвестно" — API их
+    не документирует, и официальное приложение показывает их так же.
+    """
     if state == EVSE_STATE_READY_TO_START:
         return "Свободна"
     if state == EVSE_STATE_WAITING_START:
@@ -76,12 +80,14 @@ def describe_evse_state(state: int) -> str:
     return "Неизвестно"
 
 
-# Лимит мощности зарядки (number-сущность).
+# Границы регулировки лимита мощности зарядки (number-сущность). Верхняя граница
+# фиксированная: поле max_power_limit со стороны API меняется само по себе и как
+# потолок диапазона не годится.
 CHARGER_MIN_POWER_KW = 1.2
 CHARGER_FALLBACK_MAX_POWER_KW = 10.0
 
-# Charger (wbox) — своя эвристика офлайна, отличная от остальных устройств: rssi==50 -> 20 мин,
-# иначе -> 120 мин; без common/time_saved -> offline.
+# У wbox своя эвристика офлайна, отличная от остальных устройств: rssi==50 -> 20 мин,
+# иначе -> 120 мин; без common/time_saved считаем офлайном.
 CHARGER_ONLINE_SECONDS_RSSI_50 = 20 * 60
 CHARGER_ONLINE_SECONDS_DEFAULT = 120 * 60
 
@@ -89,7 +95,8 @@ CHARGER_ONLINE_SECONDS_DEFAULT = 120 * 60
 def detect_hw_type(hw_type: str) -> str | None:
     """Определить тип устройства Waviot по строке hw_type.
 
-    Регистронезависимое совпадение по подстроке.
+    Регистронезависимое совпадение по подстроке: API возвращает hw_type с
+    суффиксами вида "wbox_nvt_wa_stm", точного равенства ждать нельзя.
     """
     lowered = hw_type.lower()
     for kind in ALL_HW_TYPES:
