@@ -5,8 +5,8 @@ import json
 
 import pytest
 
-import custom_components.waviot.api as api_module
-from custom_components.waviot.api import WaviotClient
+import custom_components.waviot_home.api as api_module
+from custom_components.waviot_home.api import WaviotClient
 
 
 class _FakeResponse:
@@ -82,7 +82,7 @@ async def test_charger_start_stop_sends_correct_actions(client, session):
 
 
 async def test_charger_command_raises_on_failed_status(client, session):
-    from custom_components.waviot.api import WaviotApiError
+    from custom_components.waviot_home.api import WaviotApiError
 
     session.get = lambda url, headers=None, params=None: _FakeResponse(
         200, {params["modem_id"]: [{"db_id": "bd-1", "dl_status": "FAILED"}]}

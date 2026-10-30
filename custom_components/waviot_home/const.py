@@ -1,7 +1,7 @@
 """Константы интеграции Waviot."""
 from __future__ import annotations
 
-DOMAIN = "waviot"
+DOMAIN = "waviot_home"
 
 CONF_LOGIN = "login"
 CONF_JWT = "jwt"

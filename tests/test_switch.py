@@ -5,10 +5,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from custom_components.waviot.account import WaviotAccount
-from custom_components.waviot.api import WaviotApiError, WaviotClient
-from custom_components.waviot.device import WaviotDeviceInfo
-from custom_components.waviot.switch import WaviotRelaySwitch
+from custom_components.waviot_home.account import WaviotAccount
+from custom_components.waviot_home.api import WaviotApiError, WaviotClient
+from custom_components.waviot_home.device import WaviotDeviceInfo
+from custom_components.waviot_home.switch import WaviotRelaySwitch
 
 
 @pytest.fixture

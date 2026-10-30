@@ -3,13 +3,13 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from custom_components.waviot.const import (
+from custom_components.waviot_home.const import (
     CHARGER_CHARGING_UPDATE_INTERVAL,
     CHARGER_IDLE_UPDATE_INTERVAL,
     EVSE_STATE_CHARGING,
     EVSE_STATE_WAITING_START,
 )
-from custom_components.waviot.coordinator import charging_update_interval
+from custom_components.waviot_home.coordinator import charging_update_interval
 
 
 def test_idle_interval_when_nothing_charging():

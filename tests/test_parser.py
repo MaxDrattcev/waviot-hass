@@ -1,7 +1,7 @@
 """Тесты parse_device_status — без реального HA, только чистая логика."""
 import time
 
-from custom_components.waviot.const import (
+from custom_components.waviot_home.const import (
     HW_TYPE_AQUA,
     HW_TYPE_BETAR,
     HW_TYPE_GEFEST,
@@ -11,7 +11,7 @@ from custom_components.waviot.const import (
     HW_TYPE_WBOX,
     detect_hw_type,
 )
-from custom_components.waviot.parser import parse_device_status
+from custom_components.waviot_home.parser import parse_device_status
 
 
 def _online_common() -> dict:

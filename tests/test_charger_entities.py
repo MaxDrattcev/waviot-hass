@@ -6,17 +6,17 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from custom_components.waviot.account import WaviotAccount
-from custom_components.waviot.api import WaviotApiError, WaviotClient
-from custom_components.waviot.const import (
+from custom_components.waviot_home.account import WaviotAccount
+from custom_components.waviot_home.api import WaviotApiError, WaviotClient
+from custom_components.waviot_home.const import (
     CHARGER_FALLBACK_MAX_POWER_KW,
     EVSE_STATE_CHARGING,
     EVSE_STATE_READY_TO_START,
     EVSE_STATE_WAITING_START,
 )
-from custom_components.waviot.device import WaviotDeviceInfo
-from custom_components.waviot.number import WaviotChargerMaxPowerNumber
-from custom_components.waviot.switch import WaviotChargerSwitch
+from custom_components.waviot_home.device import WaviotDeviceInfo
+from custom_components.waviot_home.number import WaviotChargerMaxPowerNumber
+from custom_components.waviot_home.switch import WaviotChargerSwitch
 
 
 def _status(state: int, **overrides) -> dict:

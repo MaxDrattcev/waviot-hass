@@ -4,13 +4,15 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .account import WaviotAccount
-from .api import WaviotClient
+from .api import WaviotApiError, WaviotAuthError, WaviotClient
 from .const import HW_TYPE_LADOGA, HW_TYPE_WBOX, SUPPORTED_HW_TYPES
 from .coordinator import WaviotChargingCoordinator, WaviotLeakCoordinator, WaviotMainCoordinator
 from .device import WaviotDeviceInfo
@@ -37,8 +39,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: WaviotConfigEntry) -> bo
     client = WaviotClient(async_get_clientsession(hass))
     account = WaviotAccount(hass, entry, client)
 
-    jwt = await account.async_refresh()
-    raw_devices = await client.get_devices(jwt)
+    # Временный сбой облака при старте — не повод падать в SETUP_ERROR:
+    # ConfigEntryNotReady заставляет Home Assistant повторять настройку с нарастающей паузой.
+    # ConfigEntryAuthFailed из async_refresh не перехватываем — он запускает реавторизацию.
+    try:
+        jwt = await account.async_refresh()
+        raw_devices = await client.get_devices(jwt)
+    except (WaviotApiError, WaviotAuthError, aiohttp.ClientError, TimeoutError) as err:
+        raise ConfigEntryNotReady(f"Не удалось получить данные из облака WAVIoT HOME: {err}") from err
 
     devices: list[WaviotDeviceInfo] = []
     for raw in raw_devices:
