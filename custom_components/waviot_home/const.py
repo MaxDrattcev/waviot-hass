@@ -9,15 +9,16 @@ CONF_REFRESH_TOKEN = "refresh_token"
 
 API_BASE_URL = "https://api.waviot-home.ru"
 
-# Основной опрос статусов всех устройств.
-DEFAULT_UPDATE_INTERVAL = 600
-# Отдельный, более частый опрос протечки ladoga — временное значение,
-# пользователь попросил 20 сек на старте, увеличим позже.
-LEAK_UPDATE_INTERVAL = 20
+# Пассивный опрос статусов всех устройств — единый интервал для всех координаторов.
+# Раньше протечка и зарядка опрашивались чаще (20/30 сек) для быстрой реакции; теперь
+# это делает events_client.py мгновенными событиями напрямую с гостевого AMQP-брокера,
+# а поллинг остался только подстраховкой и полным обновлением состояния.
+DEFAULT_UPDATE_INTERVAL = 900
+LEAK_UPDATE_INTERVAL = DEFAULT_UPDATE_INTERVAL
 
-# Опрос wbox: адаптивный интервал — быстрый во время зарядки, обычный (как DEFAULT_UPDATE_INTERVAL)
-# в режиме ожидания/не подключено.
-CHARGER_CHARGING_UPDATE_INTERVAL = 30
+# Раньше wbox опрашивался адаптивно (быстро во время зарядки) — теперь не нужно по той же
+# причине, интервал всегда как у остальных.
+CHARGER_CHARGING_UPDATE_INTERVAL = DEFAULT_UPDATE_INTERVAL
 CHARGER_IDLE_UPDATE_INTERVAL = DEFAULT_UPDATE_INTERVAL
 
 HW_TYPE_PHOBOS = "phobos"
@@ -53,7 +54,7 @@ EVSE_STATE_READY_TO_START = 1  # "Свободна" — разъём не под
 EVSE_STATE_WAITING_START = 3  # подключено, готово к запуску
 EVSE_STATE_CHARGING = 4  # идёт зарядка
 
-_EVSE_ERROR_STATES = {
+EVSE_ERROR_STATES = {
     5: "Состояние D",
     6: "Ошибка УЗО",
     7: "Потеряно заземление",
@@ -75,8 +76,8 @@ def describe_evse_state(state: int) -> str:
         return "Ожидает старта"
     if state == EVSE_STATE_CHARGING:
         return "Заряжается"
-    if state in _EVSE_ERROR_STATES:
-        return _EVSE_ERROR_STATES[state]
+    if state in EVSE_ERROR_STATES:
+        return EVSE_ERROR_STATES[state]
     return "Неизвестно"
 
 

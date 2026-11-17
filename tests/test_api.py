@@ -90,3 +90,60 @@ async def test_charger_command_raises_on_failed_status(client, session):
 
     with pytest.raises(WaviotApiError):
         await client.charger_start_stop("123", "jwt", True)
+
+
+class _InstantSession:
+    def __init__(self, body):
+        self._body = body
+        self.get_calls: list[dict] = []
+
+    def get(self, url, headers=None, params=None):
+        self.get_calls.append({"url": url, "headers": headers, "params": params})
+        return _FakeResponse(200, self._body)
+
+
+async def test_get_instant_batch_requests_like_mobile_app_and_takes_last_record():
+    body = [
+        {
+            "modem": 11773968,
+            "timeto": 1,
+            "meterings": [{"32.7.0": 229.0}, {"32.7.0": 230.5}],
+        },
+        {"modem": 5, "timeto": 1, "meterings": []},
+    ]
+    session = _InstantSession(body)
+    result = await WaviotClient(session).get_instant_batch(["11773968", "5"], "jwt")
+
+    assert result == {"11773968": {"32.7.0": 230.5}}
+    call = session.get_calls[0]
+    assert call["url"].endswith("/driver_electro5/api/report/history")
+    assert call["params"] == {
+        "modem": "11773968,5",
+        "profile": "1.0.94.7.0.255",
+        "limit": "100",
+    }
+
+
+async def test_get_instant_batch_empty_list_and_no_ids():
+    assert await WaviotClient(_InstantSession([])).get_instant_batch(["1"], "jwt") == {}
+    assert await WaviotClient(_InstantSession([])).get_instant_batch([], "jwt") == {}
+
+
+async def test_get_last_charge_session_requests_newest_record():
+    record = {"timestamp": 5, "data": {"data": {"0100000809FF": 10}}}
+    session = _InstantSession({"777": [record]})
+    result = await WaviotClient(session).get_last_charge_session("777", "jwt")
+
+    assert result == record
+    call = session.get_calls[0]
+    assert call["url"].endswith("/api/roll")
+    assert call["params"] == {
+        "modem_id": "777",
+        "tag": "electro5.data_profile_charge",
+        "limit": "1",
+    }
+
+
+async def test_get_last_charge_session_none_when_no_history():
+    assert await WaviotClient(_InstantSession({"777": []})).get_last_charge_session("777", "j") is None
+    assert await WaviotClient(_InstantSession({})).get_last_charge_session("777", "j") is None

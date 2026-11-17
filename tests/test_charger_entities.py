@@ -10,6 +10,7 @@ from custom_components.waviot_home.account import WaviotAccount
 from custom_components.waviot_home.api import WaviotApiError, WaviotClient
 from custom_components.waviot_home.const import (
     CHARGER_FALLBACK_MAX_POWER_KW,
+    CHARGER_MIN_POWER_KW,
     EVSE_STATE_CHARGING,
     EVSE_STATE_READY_TO_START,
     EVSE_STATE_WAITING_START,
@@ -250,14 +251,30 @@ def test_number_native_value_from_status(coordinator, client, account, device):
     assert number.native_value == 6.0
 
 
-def test_number_max_is_fixed_regardless_of_max_power_limit(coordinator, client, account, device):
-    """Регрессионный тест: потолок слайдера фиксирован (CHARGER_FALLBACK_MAX_POWER_KW),
-    а не берётся из max_power_limit — то поле само "плавает" на платформе (подтверждено
+def test_number_max_ignores_floating_max_power_limit(coordinator, client, account, device):
+    """Регрессионный тест: потолок слайдера не берётся из max_power_limit — то поле само "плавает" на платформе (подтверждено
     2026-09-08 на реальном устройстве: менялось с 15.5 на 7.6 без нашего участия),
     из-за чего диапазон визуально "сужался" вместо движения позиции ползунка."""
     coordinator.data["777"] = _status(EVSE_STATE_CHARGING, max_power_limit=9999)
     number = _make_number(coordinator, client, account, device)
     assert number.native_max_value == CHARGER_FALLBACK_MAX_POWER_KW
+
+
+def test_number_max_comes_from_max_balancing_power(coordinator, client, account, device):
+    """Как в приложении: потолок слайдера — max_balancing_power станции (у вас 7,68 кВт)."""
+    coordinator.data["777"] = _status(EVSE_STATE_CHARGING, max_balancing_power=7.68)
+    number = _make_number(coordinator, client, account, device)
+    assert number.native_max_value == 7.68
+    assert number.native_min_value == CHARGER_MIN_POWER_KW
+
+
+def test_number_max_falls_back_when_balancing_power_missing_or_too_low(
+    coordinator, client, account, device
+):
+    for value in (None, 0.0, CHARGER_MIN_POWER_KW - 0.1):
+        coordinator.data["777"] = _status(EVSE_STATE_CHARGING, max_balancing_power=value)
+        number = _make_number(coordinator, client, account, device)
+        assert number.native_max_value == CHARGER_FALLBACK_MAX_POWER_KW
 
 
 async def test_number_set_value_converts_and_calls_client(coordinator, client, account, device):

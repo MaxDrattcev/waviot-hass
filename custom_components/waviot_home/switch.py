@@ -1,18 +1,25 @@
 """Switch-сущности Waviot: реле phobos и зарядка wbox."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import WaviotConfigEntry
 from .account import WaviotAccount
-from .api import WaviotApiError, WaviotClient
+from .api import (
+    CHARGER_CONFIRMATION_CMD,
+    CHARGER_SCHEDULER_CMD,
+    CHARGER_SETTINGS_CMD,
+    WaviotApiError,
+    WaviotClient,
+)
 from .const import (
     DOMAIN,
     EVSE_STATE_CHARGING,
@@ -24,6 +31,7 @@ from .const import (
 from .coordinator import WaviotChargingCoordinator, WaviotMainCoordinator
 from .device import WaviotDeviceInfo
 from .parser import parse_device_status
+from .pending import PendingValue
 
 
 async def async_setup_entry(
@@ -42,6 +50,18 @@ async def async_setup_entry(
             entities.append(
                 WaviotChargerSwitch(
                     runtime.charging_coordinator, runtime.client, runtime.account, device
+                )
+            )
+            entities.extend(
+                WaviotChargerConfigSwitch(
+                    runtime.charging_coordinator, runtime.client, runtime.account, device, spec
+                )
+                for spec in WBOX_CONFIG_SWITCHES
+            )
+        if device.kind == HW_TYPE_PHOBOS:
+            entities.append(
+                WaviotPowersharingSwitch(
+                    runtime.main_coordinator, runtime.client, runtime.account, device
                 )
             )
     async_add_entities(entities)
@@ -73,7 +93,7 @@ class _WaviotSwitchBase(CoordinatorEntity, SwitchEntity):
         self._attr_name = name
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, device.modem_id)},
-            name=f"Waviot {device.kind} {device.modem_id}",
+            name=device.title,
             manufacturer="Waviot",
             model=device.kind,
         )
@@ -224,3 +244,155 @@ class WaviotChargerSwitch(_WaviotSwitchBase):
             self.async_write_ha_state()
             await self.coordinator.async_request_refresh()
             raise HomeAssistantError(f"Не удалось управлять зарядкой: {err}") from err
+
+
+@dataclass(frozen=True, kw_only=True)
+class ChargerSwitchSpec:
+    """Настройка станции, которую можно включить или выключить.
+
+    key — ключ в статусе и в unique_id; cmd и field — объект и поле настроек станции;
+    as_int — флаг хранится числом 0/1 (CHARGER_CMD_CHARGE_SETTINGS), иначе булевым.
+    """
+
+    key: str
+    name: str
+    cmd: str
+    field: str
+    as_int: bool
+
+
+# Только настройки, которые есть в мобильном приложении. Имена подобраны так, чтобы по
+# алфавиту (так HA сортирует сущности на странице устройства) переключатель шёл первым,
+# а число/время той же группы — сразу за ним: «…: включено» < «…: время/начало».
+WBOX_CONFIG_SWITCHES: tuple[ChargerSwitchSpec, ...] = (
+    ChargerSwitchSpec(
+        key="balance_enabled", name="Балансировка: включена",
+        cmd=CHARGER_SETTINGS_CMD, field="balance_enabled", as_int=True,
+    ),
+    ChargerSwitchSpec(
+        key="use_two_tariff_enabled", name="Тарифы: два тарифа",
+        cmd=CHARGER_SETTINGS_CMD, field="use_two_tariff_enabled", as_int=True,
+    ),
+    ChargerSwitchSpec(
+        key="schedule_start_enabled", name="Расписание запуска: включено",
+        cmd=CHARGER_SCHEDULER_CMD, field="start", as_int=False,
+    ),
+    ChargerSwitchSpec(
+        key="schedule_stop_enabled", name="Расписание остановки: включено",
+        cmd=CHARGER_SCHEDULER_CMD, field="stop", as_int=False,
+    ),
+    ChargerSwitchSpec(
+        key="nfc_confirmation", name="NFC: подтверждение картой",
+        cmd=CHARGER_CONFIRMATION_CMD, field="nfc_accept", as_int=False,
+    ),
+)
+
+
+class WaviotChargerConfigSwitch(_WaviotSwitchBase):
+    """Переключатель настройки станции wbox.
+
+    Запись идёт по схеме «свежий объект настроек из облака, изменить одно поле, отправить
+    весь объект» (как делает мобильное приложение), см. WaviotClient.charger_update_object.
+    """
+
+    def __init__(
+        self,
+        coordinator: WaviotChargingCoordinator,
+        client: WaviotClient,
+        account: WaviotAccount,
+        device: WaviotDeviceInfo,
+        spec: ChargerSwitchSpec,
+    ) -> None:
+        super().__init__(coordinator, client, account, device, spec.key, spec.name)
+        self._spec = spec
+        self._pending = PendingValue()
+        self._attr_has_entity_name = True
+        self._attr_entity_category = EntityCategory.CONFIG
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._status is not None
+
+    @property
+    def is_on(self) -> bool | None:
+        status = self._status
+        return self._pending.resolve(status.get(self._spec.key) if status else None)
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._async_set(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._async_set(False)
+
+    async def _async_set(self, turn_on: bool) -> None:
+        spec = self._spec
+        baseline = self._status.get(spec.key) if self._status else None
+        value = int(turn_on) if spec.as_int else turn_on
+        try:
+            await self._account.async_call(
+                lambda jwt: self._client.charger_update_object(
+                    self._device.modem_id, jwt, spec.cmd, {spec.field: value}
+                )
+            )
+        except WaviotApiError as err:
+            raise HomeAssistantError(f"Не удалось изменить «{spec.name}»: {err}") from err
+        self._pending.set(turn_on, baseline)
+        self.async_write_ha_state()
+
+
+class WaviotPowersharingSwitch(_WaviotSwitchBase):
+    """Балансировка мощности счётчика Фобос.
+
+    Команда `powersharing` несёт сразу state и p_max. Если текущий p_max неизвестен
+    (облако отдаёт его только после чтения прибором), не пишем: подставленное значение
+    по умолчанию могло бы ограничить нагрузку.
+    """
+
+    def __init__(
+        self,
+        coordinator: WaviotMainCoordinator,
+        client: WaviotClient,
+        account: WaviotAccount,
+        device: WaviotDeviceInfo,
+    ) -> None:
+        super().__init__(
+            coordinator, client, account, device, "powersharing_enabled", "Балансировка: включена"
+        )
+        self._pending = PendingValue()
+        self._attr_has_entity_name = True
+        self._attr_entity_category = EntityCategory.CONFIG
+        self._attr_entity_registry_enabled_default = False
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._status is not None
+
+    @property
+    def is_on(self) -> bool | None:
+        status = self._status
+        return self._pending.resolve(status.get("powersharing_enabled") if status else None)
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._async_set(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._async_set(False)
+
+    async def _async_set(self, turn_on: bool) -> None:
+        status = self._status or {}
+        p_max = status.get("powersharing_max")
+        if p_max is None:
+            raise HomeAssistantError(
+                "Текущий лимит балансировки неизвестен: сначала задайте его (число "
+                "«Балансировка: лимит») или откройте настройки счётчика в приложении"
+            )
+        try:
+            await self._account.async_call(
+                lambda jwt: self._client.phobos_write_powersharing(
+                    self._device.modem_id, jwt, turn_on, p_max
+                )
+            )
+        except WaviotApiError as err:
+            raise HomeAssistantError(f"Не удалось изменить балансировку: {err}") from err
+        self._pending.set(turn_on, status.get("powersharing_enabled"))
+        self.async_write_ha_state()

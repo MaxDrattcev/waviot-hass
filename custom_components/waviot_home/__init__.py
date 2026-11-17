@@ -16,10 +16,20 @@ from .api import WaviotApiError, WaviotAuthError, WaviotClient
 from .const import HW_TYPE_LADOGA, HW_TYPE_WBOX, SUPPORTED_HW_TYPES
 from .coordinator import WaviotChargingCoordinator, WaviotLeakCoordinator, WaviotMainCoordinator
 from .device import WaviotDeviceInfo
+from .events_client import WaviotEventsClient
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SWITCH, Platform.NUMBER]
+PLATFORMS = [
+    Platform.SENSOR,
+    Platform.BINARY_SENSOR,
+    Platform.SWITCH,
+    Platform.NUMBER,
+    Platform.BUTTON,
+    Platform.CALENDAR,
+    Platform.TIME,
+    Platform.SELECT,
+]
 
 
 @dataclass
@@ -30,6 +40,7 @@ class WaviotRuntimeData:
     leak_coordinator: WaviotLeakCoordinator | None
     charging_coordinator: WaviotChargingCoordinator | None
     devices: list[WaviotDeviceInfo]
+    events_client: WaviotEventsClient
 
 
 type WaviotConfigEntry = ConfigEntry[WaviotRuntimeData]
@@ -76,6 +87,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: WaviotConfigEntry) -> bo
         charging_coordinator = WaviotChargingCoordinator(hass, client, account, wbox_devices)
         await charging_coordinator.async_config_entry_first_refresh()
 
+    events_client = WaviotEventsClient(
+        hass,
+        account,
+        main_coordinator,
+        leak_coordinator,
+        charging_coordinator,
+    )
+
     entry.runtime_data = WaviotRuntimeData(
         client=client,
         account=account,
@@ -83,11 +102,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: WaviotConfigEntry) -> bo
         leak_coordinator=leak_coordinator,
         charging_coordinator=charging_coordinator,
         devices=devices,
+        events_client=events_client,
     )
 
+    # events_client запускаем только после успешной настройки платформ: если
+    # async_forward_entry_setups упадёт, async_setup_entry целиком считается
+    # неудачным и async_unload_entry не вызывается — запущенный раньше клиент
+    # и его AMQP-соединение останутся висеть до перезапуска HA.
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    events_client.async_start()
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: WaviotConfigEntry) -> bool:
+    await entry.runtime_data.events_client.async_stop()
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
