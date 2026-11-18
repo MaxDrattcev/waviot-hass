@@ -274,23 +274,24 @@ def _phase_specs(
 _DIAGNOSTIC = EntityCategory.DIAGNOSTIC
 
 PHOBOS_SENSORS: tuple[WaviotSensorSpec, ...] = (
-    # Энергия A+: облако отдаёт Вт·ч; в интерфейсе по умолчанию кВт·ч, как в приложении.
+    # Энергия A+: OBIS 0100010800FF — облако отдаёт уже в кВт·ч (подтверждено контрактом
+    # yandex-gw и сверкой с мобильным приложением), а не в Вт·ч. Раньше тут стоял
+    # UnitOfEnergy.WATT_HOUR + suggested_unit=KILO_WATT_HOUR — лишняя конверсия делила
+    # показание ещё на 1000, расход энергии был занижен в 1000 раз у всех Фобосов.
     WaviotSensorSpec(
         key="meter",
         name="Расход энергии",
         device_class=SensorDeviceClass.ENERGY,
-        unit=UnitOfEnergy.WATT_HOUR,
+        unit=UnitOfEnergy.KILO_WATT_HOUR,
         state_class=SensorStateClass.TOTAL_INCREASING,
-        suggested_unit=UnitOfEnergy.KILO_WATT_HOUR,
     ),
     *(
         WaviotSensorSpec(
             key=f"energy_t{i}",
             name=f"Энергия A+ T{i}",
             device_class=SensorDeviceClass.ENERGY,
-            unit=UnitOfEnergy.WATT_HOUR,
+            unit=UnitOfEnergy.KILO_WATT_HOUR,
             state_class=SensorStateClass.TOTAL_INCREASING,
-            suggested_unit=UnitOfEnergy.KILO_WATT_HOUR,
             tariff=i,
             enabled_default=(i == 1),  # T2–T4 выключены по умолчанию, включает пользователь
         )

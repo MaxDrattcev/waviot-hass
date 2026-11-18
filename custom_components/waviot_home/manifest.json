@@ -7,5 +7,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/MaxDrattcev/waviot-hass/issues",
   "requirements": ["aio-pika==9.4.3"],
-  "version": "0.3.0"
+  "version": "0.3.1"
 }

@@ -37,6 +37,22 @@ def test_existing_unique_ids_are_preserved():
     assert {"meter", "voltage", "power", "amperage"} <= keys
 
 
+def test_energy_sensors_are_native_kwh_without_extra_conversion():
+    """Регрессия: облако отдаёт расход энергии (0100010800FF и тарифы) уже в кВт·ч.
+
+    Раньше тут стоял unit=Вт·ч + suggested_unit=кВт·ч — лишняя конверсия делила
+    реальное показание ещё на 1000 (подтверждено сверкой с мобильным приложением
+    на живом счётчике: облако отдало 84.284, после лишней конверсии HA показывал
+    0.084284). unit должен быть сразу кВт·ч, suggested_unit — не задан."""
+    energy_specs = [
+        spec for spec in PHOBOS_SENSORS if spec.key == "meter" or spec.key.startswith("energy_t")
+    ]
+    assert energy_specs
+    for spec in energy_specs:
+        assert spec.unit == "kWh", spec.key
+        assert spec.suggested_unit is None, spec.key
+
+
 def test_three_phase_meter_gets_full_set_like_reference_meter():
     keys = _keys("phobos3L_wa_nvt_stm")
     assert keys == {spec.key for spec in PHOBOS_SENSORS}

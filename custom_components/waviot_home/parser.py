@@ -236,7 +236,9 @@ def parse_device_status(kind: str, raw: dict[str, Any] | None) -> dict[str, Any]
         version = version if isinstance(version, dict) else {}
         return {
             "on": bool(_get_float(raw.get("0.0.96.3.10.255_2"))),
-            # Энергия — накопительная, в Вт·ч (облако отдаёт сырое значение).
+            # Энергия — накопительная, облако отдаёт уже в кВт·ч (подтверждено контрактом
+            # yandex-gw и сверкой с мобильным приложением — не Вт·ч, несмотря на то, что
+            # может показаться по названию OBIS).
             "meter": _get_optional_float(raw.get("0100010800FF")),
             **{
                 key: _get_optional_float(raw.get(obis))
