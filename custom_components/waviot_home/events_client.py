@@ -53,6 +53,21 @@ _RABBIT_CMD_ROUTING_KEY = "cmd.in.serversoft"
 _QUEUE_EXPIRES_SECONDS = 3600
 _QUEUE_DECLARE_ATTEMPTS = 10
 _QUEUE_DECLARE_RETRY_DELAY = 0.5
+# Явный heartbeat вместо дефолта библиотеки — это настройка только нашей стороны
+# (стандартное согласование AMQP: действует min(наше, предложенное брокером)), пустые
+# heartbeat-кадры идут независимо от того, шлют ли приборы реальные данные. Основной
+# способ понять, что соединение умерло: пропущенные heartbeat сами уронят соединение
+# исключением, которое мы уже ловим.
+_HEARTBEAT_SECONDS = 30
+# Таймаут на всё подключение целиком (TCP+handshake+create_queue+declare) — без него
+# зависший connect() вешает весь _run() намертво, в обход любого бэкоффа.
+_CONNECT_TIMEOUT_SECONDS = 30
+# Подстраховка на случай, если heartbeat сам почему-то не заметит обрыв (как в инциденте,
+# из-за которого это всё появилось). Порог НЕ калибруется по самому болтливому прибору:
+# у разных приборов интервал между реальными событиями сильно разный (Wallhub — секунды,
+# зарядка — около часа между пакетами), поэтому порог взят с большим запасом над любым
+# ожидаемым межсобытийным интервалом, чтобы не дёргать переподключение на ровном месте.
+_IDLE_RECONNECT_SECONDS = 7200
 
 # Коды из журнала событий Фобоса (0.0.96.3.10.255_2 / журнал type=2).
 _PHOBOS_EVENT_RELAY_OFF = 518
@@ -308,14 +323,24 @@ class WaviotEventsClient:
 
         connected = False
         connection: aio_pika.abc.AbstractConnection | None = None
+        phase = "connect"  # разделяет таймаут "не смогли подключиться" от "заслушались"
         try:
-            connection = await aio_pika.connect(_RABBIT_GUEST_URL)
+            connection = await asyncio.wait_for(
+                aio_pika.connect(_RABBIT_GUEST_URL, heartbeat=_HEARTBEAT_SECONDS),
+                timeout=_CONNECT_TIMEOUT_SECONDS,
+            )
             self._connection = connection
             queue_suffix = uuid.uuid4().hex[:12]
-            await self._send_create_queue(connection, api_key, queue_suffix)
+            await asyncio.wait_for(
+                self._send_create_queue(connection, api_key, queue_suffix),
+                timeout=_CONNECT_TIMEOUT_SECONDS,
+            )
 
             queue_name = f"guest.{api_key}.{queue_suffix}"
-            channel, queue = await self._declare_queue_with_retry(connection, queue_name)
+            channel, queue = await asyncio.wait_for(
+                self._declare_queue_with_retry(connection, queue_name),
+                timeout=_CONNECT_TIMEOUT_SECONDS,
+            )
             if queue is None:
                 _LOGGER.debug("rabbit: гостевая очередь %s не появилась", _mask_queue_name(queue_name))
                 return False
@@ -323,12 +348,28 @@ class WaviotEventsClient:
 
             _LOGGER.debug("rabbit: подключён, слушаю %s", _mask_queue_name(queue_name))
             connected = True
+            phase = "listen"
             async with queue.iterator() as messages:
-                async for message in messages:
+                while True:
+                    message = await asyncio.wait_for(
+                        anext(messages), timeout=_IDLE_RECONNECT_SECONDS
+                    )
                     async with message.process():
                         self._handle_delivery(message.routing_key, message.body)
         except asyncio.CancelledError:
             raise
+        except TimeoutError:
+            if phase == "listen":
+                _LOGGER.debug(
+                    "rabbit: нет сообщений %d сек — похоже, соединение зависло, переподключаюсь",
+                    _IDLE_RECONNECT_SECONDS,
+                )
+            else:
+                _LOGGER.debug(
+                    "rabbit: подключение не завершилось за %d сек, переподключаюсь",
+                    _CONNECT_TIMEOUT_SECONDS,
+                )
+            return connected
         except Exception as err:  # noqa: BLE001 — обрыв сети не должен ронять интеграцию
             _LOGGER.debug("rabbit: соединение прервано: %s", err)
             return connected
